@@ -15,10 +15,13 @@ Supported tags:
 
 This is an example of a struct tagged:
 
+```
 type Examplestruct struct {
 	ID int64   `model:"id" type:"bigserial" constraint:"note_pk PRIMARY KEY (id)" `
 	Description string `model:"description" type:"text" mandatory:"true"`
 	Title string `model:"title" type:"varchar(300)" mandatory:"true"`
 }
+
+```
 
 Those tags are useful if you want to generate the database table from the struct. But If don't want to do it in that way. You mush have at least this fields on each model: ID::integer, created_at:timestamp and updated_at:timestamp and the strutc must have the same table name.
