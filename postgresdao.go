@@ -58,18 +58,35 @@ func (pdb PostgresDB) ListAllPaginated(model interface{}, limit int, offset int,
 	sqlString := " SELECT "
 	sqlString = concatColumns(t, sqlString) + " FROM " + t.Type().Name() + " where deleted_at is null"
 
-	for k, v := range filters {
-		sqlString = sqlString + " AND " + k + " = " + getValue(reflect.ValueOf(v))
+	var i int
+	for k, _ := range filters {
+		i++
+		sqlString = sqlString + " AND " + k + " = $" + strconv.Itoa(i)
 	}
 
-	if !(limit == 0 && offset == 0)  {
-		sqlString = sqlString + " order by id desc LIMIT $1 OFFSET $2 "
-		resRows, resError = pdb.Query(sqlString, limit, offset)
-	} else {
-		resRows, resError = pdb.Query(sqlString)
+	newValues := pdb.extractFilterValues(filters)
+
+	if !(limit == 0 && offset == 0) {
+		if len(newValues) == 0 {
+			sqlString = sqlString + " order by id desc LIMIT $1 OFFSET $2 "
+		} else {
+			newValues = append(newValues, strconv.Itoa(limit))
+			newValues = append(newValues, strconv.Itoa(offset))
+			sqlString = sqlString + " order by id desc LIMIT $" + strconv.Itoa(len(filters)+1) + " OFFSET $" + strconv.Itoa(len(filters)+2)
+		}
 	}
+
+	resRows, resError = pdb.Query(sqlString, newValues...)
 
 	return resRows, resError
+}
+
+func (pdb PostgresDB) extractFilterValues(filters map[string]interface{}) []interface{} {
+	var newValues []interface{}
+	for _, v := range filters {
+		newValues = append(newValues, getValue(reflect.ValueOf(v)))
+	}
+	return newValues
 }
 
 // Description: search a given type struct passed as parameter by id
@@ -110,14 +127,20 @@ func (pdb PostgresDB) Update(model interface{}, id uint)  (sql.Result, error) {
 	sqlString := " UPDATE " + t.Type().Name() + " SET "
 	for i := 0; i < t.NumField(); i++ {
 		if t.Type().Field(i).Name != "ID" {
-			sqlString = sqlString + t.Type().Field(i).Tag.Get("model") + " = " + getValue(t.Field(i))
+			sqlString = sqlString + t.Type().Field(i).Tag.Get("model") + " = $" + strconv.Itoa(i)
 			if i != (t.NumField() - 1) {
 				sqlString = sqlString + ","
 			}
 		}
 	}
-	sqlString = sqlString + ", updated_at = to_timestamp('" + time.Now().Format("2006-01-02 15:04:05") + "', 'YYYY-MM-DD HH24:MI:SS') WHERE ID = $1 ;"
-	return pdb.Exec(sqlString, id)
+
+	newValues := pdb.getValueParams(t)
+	newValues = append(newValues, strconv.Itoa(int(id)))
+	idParam := strconv.Itoa(len(newValues))
+
+	sqlString = sqlString + ", updated_at = to_timestamp('" + time.Now().Format("2006-01-02 15:04:05") + "', 'YYYY-MM-DD HH24:MI:SS') WHERE ID = $" + idParam
+
+	return pdb.Exec(sqlString,  newValues...)
 }
 
 // Description: insert a new type
@@ -137,10 +160,22 @@ func (pdb PostgresDB) Create(model interface{})   error {
 	sqlString = sqlString + " ) VALUES ( nextval('" + t.Type().Name() + "_seq'), "
 	sqlString = concatValues(t, sqlString)
 
-	_, err := pdb.Exec(sqlString)
+	newValues := pdb.getValueParams(t)
+
+	_, err := pdb.Exec(sqlString, newValues...)
 	fmt.Errorf("Error executing statement", err)
 
 	return err
+}
+
+func (pdb PostgresDB) getValueParams(t reflect.Value) []interface{} {
+	var newValues []interface{}
+	for i := 0; i < t.NumField(); i++ {
+		if t.Type().Field(i).Name != "ID" {
+			newValues = append(newValues, getValue(t.Field(i)))
+		}
+	}
+	return newValues
 }
 
 // Description: create value sqlString from fields of a given  value
@@ -153,12 +188,12 @@ func concatValues(valueOf reflect.Value, sqlString string) string {
 	for i := 0; i < valueOf.NumField(); i++ {
 
 		if valueOf.Type().Field(i).Name != "ID" {
-			sqlString = sqlString + getValue(valueOf.Field(i))
+			sqlString = sqlString +  "$" + strconv.Itoa(i)
 
 			if i != (valueOf.NumField() - 1) {
 				sqlString = sqlString + ","
 			} else {
-				sqlString = sqlString + ") returning id;"
+				sqlString = sqlString + ");"
 			}
 		}
 	}
@@ -201,7 +236,7 @@ func getValue(fieldValue reflect.Value) string {
 	case "uint":
 		res = strconv.FormatUint(fieldValue.Uint(), 10)
 	case "string":
-		res = "'" + fieldValue.String() + "'"
+		res =  fieldValue.String()
 	case "bool":
 		res =  strconv.FormatBool(fieldValue.Bool())
 	case "Time":
