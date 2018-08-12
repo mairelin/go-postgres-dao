@@ -8,7 +8,7 @@ import (
 )
 
 type TestModel struct {
-	ID uint   `model:"id" type:"bigserial" constraint:"user_pk PRIMARY KEY (id)" `
+	ID uint   `model:"id" type:"bigserial" constraint:"test_pk PRIMARY KEY (id)" `
 	Name string `model:"name" type:"varchar(100)" mandatory:"true" unique:"true"`
 }
 
