@@ -27,7 +27,7 @@ func TestUtilAll(t *testing.T) {
 func getDataBase() PostgresDB {
 	connString := fmt.Sprintf("host=%s port=%s user=%s  password=%s dbname=%s sslmode=disable",
 		"localhost", "5432", "dbname",
-		"dbname", "dbname")
+		"dbuser", "dbpass")
 	db :=  PostgresDB{ConnString:connString, Driver: "postgres"}
 	db.InitDB()
 	return db
@@ -116,8 +116,8 @@ func TestGetById(t *testing.T) {
 
 func TestDataBaseConn(t *testing.T) {
 	connString := fmt.Sprintf("host=%s port=%s user=%s  password=%s dbname=%s sslmode=disable",
-		"localhost", "5432", "pecuniaapi",
-		"pecuniaapi", "pecuniaapi")
+		"localhost", "5432", "dbname",
+		"dbuser", "dbpass")
 	db :=  PostgresDB{ConnString:connString, Driver: "postgres"}
 	_, err := db.InitDB()
 	if err != nil {
